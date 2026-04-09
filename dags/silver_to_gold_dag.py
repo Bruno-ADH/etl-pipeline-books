@@ -1,0 +1,163 @@
+"""
+DAG : Agrégation Silver → Gold
+Produit les KPIs et statistiques pour Power BI.
+Fréquence : Quotidien à 06h00 UTC (après le nettoyage)
+"""
+
+from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.utils.dates import days_ago
+
+default_args = {
+    "owner": "etl-pipeline",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "retries": 2,
+    "retry_delay": timedelta(minutes=5),
+}
+
+
+def aggregate_books_categories(**context):
+    """Agrège les livres par catégorie."""
+    from src.loaders.minio_loader import MinIOLoader
+    from src.transformers.silver_aggregator import SilverAggregator
+    from src.utils.config import Config
+    from src.utils.logger import get_logger
+    import pandas as pd
+
+    logger = get_logger("dag.silver_to_gold.categories")
+    loader = MinIOLoader()
+    aggregator = SilverAggregator()
+
+    # Combiner books_web et books_csv
+    frames = []
+    for source in ["books_web", "books_csv"]:
+        try:
+            df = loader.load_latest(Config.MINIO_BUCKET_SILVER, source)
+            frames.append(df)
+        except FileNotFoundError:
+            logger.warning(f"Source {source} introuvable en Silver, ignorée")
+
+    if not frames:
+        raise ValueError("Aucune donnée livres en Silver")
+
+    df_books = pd.concat(frames, ignore_index=True)
+    df_agg = aggregator.aggregate_books_by_category(df_books)
+    path = loader.save(df_agg, source="books_by_category", layer="gold")
+
+    logger.info("Agrégation catégories terminée", extra={"path": path})
+    return path
+
+
+def aggregate_books_top_rated(**context):
+    """Produit le top 20 des livres les mieux notés."""
+    from src.loaders.minio_loader import MinIOLoader
+    from src.transformers.silver_aggregator import SilverAggregator
+    from src.utils.config import Config
+    from src.utils.logger import get_logger
+    import pandas as pd
+
+    logger = get_logger("dag.silver_to_gold.top_rated")
+    loader = MinIOLoader()
+    aggregator = SilverAggregator()
+
+    frames = []
+    for source in ["books_web", "books_csv"]:
+        try:
+            frames.append(loader.load_latest(Config.MINIO_BUCKET_SILVER, source))
+        except FileNotFoundError:
+            pass
+
+    if not frames:
+        raise ValueError("Aucune donnée livres en Silver")
+
+    df_books = pd.concat(frames, ignore_index=True)
+    df_top = aggregator.aggregate_top_rated_books(df_books, top_n=20)
+    path = loader.save(df_top, source="books_top_rated", layer="gold")
+
+    logger.info("Top livres calculé", extra={"path": path})
+    return path
+
+
+def aggregate_books_price_dist(**context):
+    """Distribution des prix des livres."""
+    from src.loaders.minio_loader import MinIOLoader
+    from src.transformers.silver_aggregator import SilverAggregator
+    from src.utils.config import Config
+    from src.utils.logger import get_logger
+    import pandas as pd
+
+    logger = get_logger("dag.silver_to_gold.price_dist")
+    loader = MinIOLoader()
+    aggregator = SilverAggregator()
+
+    frames = []
+    for source in ["books_web", "books_csv"]:
+        try:
+            frames.append(loader.load_latest(Config.MINIO_BUCKET_SILVER, source))
+        except FileNotFoundError:
+            pass
+
+    if not frames:
+        raise ValueError("Aucune donnée livres en Silver")
+
+    df_books = pd.concat(frames, ignore_index=True)
+    df_dist = aggregator.aggregate_books_price_distribution(df_books)
+    path = loader.save(df_dist, source="books_price_distribution", layer="gold")
+
+    logger.info("Distribution prix calculée", extra={"path": path})
+    return path
+
+
+def aggregate_weather_daily(**context):
+    """Statistiques météo journalières par ville."""
+    from src.loaders.minio_loader import MinIOLoader
+    from src.transformers.silver_aggregator import SilverAggregator
+    from src.utils.config import Config
+    from src.utils.logger import get_logger
+
+    logger = get_logger("dag.silver_to_gold.weather_daily")
+    loader = MinIOLoader()
+    aggregator = SilverAggregator()
+
+    df_weather = loader.load_latest(Config.MINIO_BUCKET_SILVER, "weather")
+    df_agg = aggregator.aggregate_weather_daily(df_weather)
+    path = loader.save(df_agg, source="weather_daily", layer="gold")
+
+    logger.info("Météo journalière agrégée", extra={"path": path})
+    return path
+
+
+with DAG(
+    dag_id="silver_to_gold",
+    description="Agrégations Silver → Gold (KPIs pour Power BI)",
+    default_args=default_args,
+    start_date=days_ago(1),
+    schedule_interval="0 6 * * *",  # Tous les jours à 06h00 UTC
+    catchup=False,
+    tags=["transform", "gold", "silver", "kpi"],
+) as dag:
+
+    task_categories = PythonOperator(
+        task_id="aggregate_books_categories",
+        python_callable=aggregate_books_categories,
+    )
+
+    task_top_rated = PythonOperator(
+        task_id="aggregate_books_top_rated",
+        python_callable=aggregate_books_top_rated,
+    )
+
+    task_price_dist = PythonOperator(
+        task_id="aggregate_books_price_distribution",
+        python_callable=aggregate_books_price_dist,
+    )
+
+    task_weather = PythonOperator(
+        task_id="aggregate_weather_daily",
+        python_callable=aggregate_weather_daily,
+    )
+
+    # Toutes les agrégations tournent en parallèle
+    [task_categories, task_top_rated, task_price_dist, task_weather]

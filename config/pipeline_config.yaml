@@ -1,0 +1,69 @@
+# ============================================================
+# CONFIGURATION DU PIPELINE ETL
+# Paramètres ajustables sans modifier le code
+# ============================================================
+
+pipeline:
+  name: "ETL Pipeline Livres & Météo"
+  version: "1.0.0"
+
+extraction:
+  books_web:
+    url: "https://books.toscrape.com/"
+    max_pages: 50
+    delay_between_pages_seconds: 0.5
+    timeout_seconds: 30
+    retries: 3
+
+  books_csv:
+    encoding_fallbacks:
+      - "utf-8"
+      - "latin-1"
+      - "cp1252"
+
+  weather:
+    api_base_url: "https://api.open-meteo.com/v1/forecast"
+    forecast_days: 1
+    cities:
+      - name: "Paris"
+        lat: 48.8566
+        lon: 2.3522
+      - name: "Montreal"
+        lat: 45.5017
+        lon: -73.5673
+      - name: "Cotonou"
+        lat: 6.3676
+        lon: 2.4252
+      - name: "New York"
+        lat: 40.7128
+        lon: -74.0060
+      - name: "London"
+        lat: 51.5074
+        lon: -0.1278
+
+transformation:
+  bronze_cleaner:
+    books:
+      max_price: 10000
+      min_price: 0
+      rating_min: 0
+      rating_max: 5
+    weather:
+      temperature_min: -80
+      temperature_max: 60
+      humidity_min: 0
+      humidity_max: 100
+      wind_speed_min: 0
+      precipitation_min: 0
+
+aggregation:
+  top_rated_books_count: 20
+
+storage:
+  minio:
+    compression: "snappy"
+    format: "parquet"
+
+logging:
+  level: "INFO"
+  format: "json"

@@ -1,0 +1,145 @@
+# ============================================================
+# DOCKER COMPOSE - Pipeline ETL (version allégée)
+# Lance : Airflow (webserver + scheduler) + PostgreSQL + MinIO
+# Utilise LocalExecutor pour réduire la consommation mémoire
+# ============================================================
+
+x-airflow-common: &airflow-common
+  build:
+    context: ./airflow
+    dockerfile: Dockerfile
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:-}
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW__WEBSERVER__SECRET_KEY:-secret}
+    AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+    # Variables pour accéder à MinIO depuis les DAGs
+    MINIO_ENDPOINT: http://minio:9000
+    MINIO_ACCESS_KEY: minioadmin
+    MINIO_SECRET_KEY: minioadmin123
+    MINIO_BUCKET_BRONZE: bronze
+    MINIO_BUCKET_SILVER: silver
+    MINIO_BUCKET_GOLD: gold
+    CSV_FILE_PATH: /opt/airflow/data/Books.csv
+    BOOKS_URL: https://books.toscrape.com/
+    WEATHER_API_BASE_URL: https://api.open-meteo.com/v1/forecast
+    WEATHER_CITIES: Paris,Montreal,Cotonou,New York,London
+  volumes:
+    - ../dags:/opt/airflow/dags
+    - ../src:/opt/airflow/src
+    - ../logs:/opt/airflow/logs
+    - ../config:/opt/airflow/config
+    - ../Books.csv:/opt/airflow/data/Books.csv
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks:
+    - etl-network
+
+services:
+
+  # ---- BASE DE DONNÉES (metadata Airflow) ----
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+    networks:
+      - etl-network
+
+  # ---- STOCKAGE OBJET (S3-compatible) ----
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    networks:
+      - etl-network
+
+  # ---- INITIALISATION DES BUCKETS MINIO ----
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin123;
+      mc mb --ignore-existing local/bronze;
+      mc mb --ignore-existing local/silver;
+      mc mb --ignore-existing local/gold;
+      echo 'Buckets créés avec succès';
+      "
+    networks:
+      - etl-network
+
+  # ---- AIRFLOW : INITIALISATION ----
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db init
+        airflow users create \
+          --username admin \
+          --password admin123 \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@example.com || true
+    restart: "no"
+
+  # ---- AIRFLOW : INTERFACE WEB ----
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  # ---- AIRFLOW : PLANIFICATEUR (exécute aussi les tâches avec LocalExecutor) ----
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    restart: always
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:
+  minio_data:
+
+networks:
+  etl-network:
+    driver: bridge

@@ -7,10 +7,6 @@ import os
 from pathlib import Path
 
 import yaml
-from dotenv import load_dotenv
-
-# Charger le .env s'il existe (developpement local)
-load_dotenv()
 
 
 def _load_pipeline_config() -> dict:

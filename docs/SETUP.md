@@ -14,23 +14,10 @@ git clone <url-du-repo>
 cd etl-pipeline-books
 ```
 
-### 2. Initialiser le projet
-```bash
-bash scripts/init_project.sh
-```
-Ce script :
-- Crée le fichier `.env` depuis `.env.example`
-- Génère automatiquement la Fernet Key Airflow
-- Vérifie la présence du fichier `Books.csv`
+### 2. Vérifier le fichier Books.csv
+Le fichier `Books.csv` (73 MB) est déjà inclus dans le repo.
 
-### 3. Placer le fichier Books.csv
-Copiez votre fichier `Books.csv` à la racine du projet :
-```
-etl-pipeline-books/
-└── Books.csv   ← ici
-```
-
-### 4. Lancer l'infrastructure Docker
+### 3. Lancer l'infrastructure Docker
 ```bash
 bash scripts/start_pipeline.sh
 ```
@@ -40,13 +27,13 @@ cd docker
 docker-compose up -d
 ```
 
-### 5. Attendre le démarrage (~2 minutes)
+### 4. Attendre le démarrage (~2 minutes)
 Vérifier que tout est vert :
 ```bash
 docker-compose ps
 ```
 
-### 6. Accéder aux interfaces
+### 5. Accéder aux interfaces
 | Service | URL | Identifiants |
 |---------|-----|--------------|
 | Airflow | http://localhost:8080 | admin / admin123 |
@@ -98,10 +85,4 @@ docker-compose logs airflow-webserver
 **MinIO inaccessible :**
 ```bash
 docker-compose logs minio
-```
-
-**Erreur Fernet Key :**
-```bash
-python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
-# Copiez la valeur dans AIRFLOW__CORE__FERNET_KEY dans .env
 ```

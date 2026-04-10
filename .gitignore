@@ -1,8 +1,4 @@
-# ============================================================
-# .GITIGNORE - Pipeline ETL
-# ============================================================
 
-# Variables d'environnement (JAMAIS committer les secrets !)
 .env
 *.env
 
@@ -61,8 +57,7 @@ data/raw/
 data/processed/
 *.tmp
 
-# Fichier CSV volumineux (73 MB) - à télécharger séparément
-Books.csv
+# Note: Books.csv (73 MB) est inclus dans le repo pour faciliter le démarrage
 
 # Power BI (garder le .pbix vide en template)
 # powerbi/*.pbix

@@ -26,8 +26,7 @@ Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour le détail.
 git clone <repo-url>
 cd etl-pipeline-books
 
-# 2. Placer le fichier Books.csv à la racine (73 MB, non inclus dans le repo)
-#    Télécharger depuis : https://www.kaggle.com/datasets/arashnic/book-recommendation-dataset
+# 2. Le fichier Books.csv (73 MB) est déjà inclus dans le repo
 
 # 3. Lancer l'infrastructure
 cd docker

@@ -36,9 +36,10 @@ class CSVReader:
         logger.info("Lecture du CSV", extra={"path": str(path)})
 
         # Essayer différents encodages courants
+        # low_memory=False pour éviter les types mixtes
         for encoding in ["utf-8", "latin-1", "cp1252"]:
             try:
-                df = pd.read_csv(path, encoding=encoding, on_bad_lines="skip")
+                df = pd.read_csv(path, encoding=encoding, on_bad_lines="skip", low_memory=False)
                 break
             except UnicodeDecodeError:
                 continue
@@ -52,6 +53,10 @@ class CSVReader:
             .str.replace(" ", "_")
             .str.replace("-", "_")
         )
+
+        # Convertir les colonnes object en string pour éviter les erreurs PyArrow
+        for col in df.select_dtypes(include=["object"]).columns:
+            df[col] = df[col].astype(str)
 
         # Ajouter la date d'extraction
         df["extracted_at"] = datetime.utcnow().isoformat()

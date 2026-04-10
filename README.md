@@ -22,16 +22,18 @@ Voir [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) pour le détail.
 
 ## Démarrage rapide
 ```bash
-# 1. Cloner et configurer
+# 1. Cloner le repo
 git clone <repo-url>
 cd etl-pipeline-books
-cp .env.example .env
 
-# 2. Lancer l'infrastructure
+# 2. Placer le fichier Books.csv à la racine (73 MB, non inclus dans le repo)
+#    Télécharger depuis : https://www.kaggle.com/datasets/arashnic/book-recommendation-dataset
+
+# 3. Lancer l'infrastructure
 cd docker
 docker-compose up -d
 
-# 3. Attendre ~2 minutes, puis ouvrir :
+# 4. Attendre ~2 minutes, puis ouvrir :
 #    Airflow : http://localhost:8080  (admin / admin123)
 #    MinIO   : http://localhost:9001  (minioadmin / minioadmin123)
 ```

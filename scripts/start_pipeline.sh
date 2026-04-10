@@ -13,9 +13,8 @@ PROJECT_ROOT="$SCRIPT_DIR/.."
 cd "$PROJECT_ROOT/docker"
 
 # Lancer tous les services en arrière-plan
-# --env-file pointe vers le .env à la racine du projet
 echo "[1/3] Lancement des conteneurs Docker..."
-docker-compose --env-file "$PROJECT_ROOT/.env" up -d
+docker-compose up -d
 
 # Attendre que les services soient prêts
 echo "[2/3] Attente du démarrage des services (~60s)..."
@@ -23,7 +22,7 @@ sleep 30
 
 # Vérifier l'état des services
 echo "[3/3] État des services :"
-docker-compose --env-file "$PROJECT_ROOT/.env" ps
+docker-compose ps
 
 echo ""
 echo "=== Pipeline démarré ==="

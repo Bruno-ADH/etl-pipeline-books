@@ -61,6 +61,9 @@ data/raw/
 data/processed/
 *.tmp
 
+# Fichier CSV volumineux (73 MB) - à télécharger séparément
+Books.csv
+
 # Power BI (garder le .pbix vide en template)
 # powerbi/*.pbix
 

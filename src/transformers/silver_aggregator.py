@@ -63,6 +63,14 @@ class SilverAggregator:
         logger.info("Distribution des prix", extra={"rows_in": len(df)})
 
         df = df.copy()
+
+        # Filtrer les lignes avec prix valide (non NaN, non négatif)
+        df = df[df["price"].notna() & (df["price"] >= 0)]
+
+        if df.empty:
+            logger.warning("Aucune ligne avec prix valide")
+            return pd.DataFrame(columns=["price_bucket", "nb_books", "avg_rating", "aggregated_at", "layer"])
+
         df["price_bucket"] = (df["price"] // 5 * 5).astype(int).astype(str) + "–" + (
             df["price"] // 5 * 5 + 5
         ).astype(int).astype(str) + "£"
@@ -80,11 +88,19 @@ class SilverAggregator:
         """Top N livres les mieux notés (ties inclus)."""
         logger.info(f"Top {top_n} livres", extra={"rows_in": len(df)})
 
-        top = (
-            df.nlargest(top_n, ["rating", "price"], keep="all")
-            [["title", "category", "price", "rating", "in_stock"]]
-            .copy()
-        )
+        # Filtrer les lignes avec rating valide
+        df_valid = df[df["rating"].notna()].copy()
+
+        if df_valid.empty:
+            logger.warning("Aucune ligne avec rating valide")
+            return pd.DataFrame(columns=["title", "category", "price", "rating", "rank", "aggregated_at", "layer"])
+
+        # Colonnes à sélectionner (in_stock peut ne pas exister)
+        cols = ["title", "category", "price", "rating"]
+        if "in_stock" in df_valid.columns:
+            cols.append("in_stock")
+
+        top = df_valid.nlargest(top_n, ["rating", "price"], keep="all")[cols].copy()
         top["rank"] = range(1, len(top) + 1)
         top["aggregated_at"] = datetime.utcnow().isoformat()
         top["layer"] = "gold"

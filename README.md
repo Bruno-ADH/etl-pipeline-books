@@ -44,3 +44,7 @@ Voir [docs/SETUP.md](docs/SETUP.md) pour les instructions détaillées.
 pip install -r requirements.txt
 pytest
 ```
+
+## Licence
+
+Ce projet est distribué sous [licence MIT](LICENSE).
